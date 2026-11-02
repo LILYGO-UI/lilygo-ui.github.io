@@ -19,12 +19,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+      - uses: actions/configure-pages@v5
       - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
       - run: npm ci
       - run: npm run build
+      - name: Verify VitePress homepage
+        run: |
+          test -s docs/.vitepress/dist/index.html
+          grep -q 'lilygo-hub' docs/.vitepress/dist/index.html
       - uses: actions/upload-pages-artifact@v4
         with:
           path: docs/.vitepress/dist
