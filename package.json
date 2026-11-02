@@ -1,0 +1,17 @@
+{
+  "name": "lilygo-ui.github.io",
+  "private": true,
+  "version": "0.1.0",
+  "description": "LILYGO UI project hub, application catalog, and documentation center.",
+  "scripts": {
+    "dev": "vitepress dev docs --host 127.0.0.1",
+    "build": "vitepress build docs",
+    "preview": "vitepress preview docs",
+    "check": "npm test && npm run build",
+    "test": "node --experimental-strip-types --test tests/*.test.ts"
+  },
+  "devDependencies": {
+    "vitepress": "^1.6.4"
+  },
+  "type": "module"
+}
