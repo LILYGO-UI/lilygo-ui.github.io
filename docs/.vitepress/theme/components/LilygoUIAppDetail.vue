@@ -1,15 +1,102 @@
 <script setup lang="ts">
-import { computed } from 'vue'
-import { useData, withBase } from 'vitepress'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { useData, useRouter, withBase } from 'vitepress'
 import { apps, appLink, type LocalizedText } from '../data/apps'
+import { fetchAppDetails, type AppDetails } from '../lib/appRegistry'
 
 const { localeIndex, params } = useData()
+const router = useRouter()
+const packageQuery = ref('')
+const clientReady = ref(false)
+let previousAfterRouteChange: typeof router.onAfterRouteChange
 const isZh = computed(() => localeIndex.value === 'zh')
-const app = computed(() => apps.find(item => item.id === params.value?.app))
+const staticApp = computed(() => apps.find(item => params.value?.app
+  ? item.id === params.value.app
+  : (item.registryPackage ?? `lilygo-ui-${item.id}`) === packageQuery.value))
+const requestedPackage = computed(() => staticApp.value
+  ? staticApp.value.registryPackage ?? `lilygo-ui-${staticApp.value.id}`
+  : packageQuery.value)
+const liveDetails = ref<AppDetails | null>(null)
+const liveStatus = ref<'idle' | 'loading' | 'success' | 'error'>('idle')
+let requestController: AbortController | null = null
+let requestSequence = 0
+
+const app = computed(() => {
+  return liveDetails.value?.registryPackage === requestedPackage.value
+    ? liveDetails.value
+    : staticApp.value
+})
 const catalogLink = computed(() => isZh.value ? '/zh/applications.html' : '/applications.html')
 const relatedApps = computed(() => app.value
   ? apps.filter(item => item.id !== app.value?.id && item.category.en === app.value?.category.en).slice(0, 3)
   : [])
+
+const releaseLink = computed(() => liveDetails.value?.registryPackage === requestedPackage.value && liveDetails.value?.releaseUrl
+  ? liveDetails.value.releaseUrl
+  : `https://github.com/LILYGO-UI/packages/tree/main/apps/${encodeURIComponent(requestedPackage.value)}/releases`)
+
+async function refreshDetails() {
+  const current = staticApp.value ?? requestedPackage.value
+  const sequence = ++requestSequence
+  requestController?.abort()
+  requestController = null
+  liveDetails.value = null
+  if (!current) {
+    liveStatus.value = 'idle'
+    return
+  }
+
+  const controller = new AbortController()
+  requestController = controller
+  liveStatus.value = 'loading'
+  const timeout = setTimeout(() => controller.abort(new Error('Registry request timed out')), 15_000)
+  try {
+    const details = await fetchAppDetails(current, { signal: controller.signal })
+    if (sequence !== requestSequence) return
+    liveDetails.value = details
+    liveStatus.value = 'success'
+    document.title = `${details.name}${isZh.value ? ' 应用详情' : ''} | LILYGO UI`
+  } catch {
+    if (sequence === requestSequence) liveStatus.value = 'error'
+  } finally {
+    clearTimeout(timeout)
+    if (requestController === controller) requestController = null
+  }
+}
+
+const stopRouteWatch = watch([requestedPackage, localeIndex], () => {
+  if (clientReady.value) void refreshDetails()
+}, { flush: 'sync' })
+
+function readPackageQuery() {
+  return new URL(window.location.href).searchParams.get('package') ?? ''
+}
+
+async function afterRouteChange(href: string) {
+  await previousAfterRouteChange?.(href)
+  packageQuery.value = readPackageQuery()
+}
+
+onMounted(() => {
+  packageQuery.value = readPackageQuery()
+  clientReady.value = true
+  previousAfterRouteChange = router.onAfterRouteChange
+  router.onAfterRouteChange = afterRouteChange
+  void refreshDetails()
+  window.addEventListener('pageshow', handlePageShow)
+})
+onBeforeUnmount(() => {
+  ++requestSequence
+  clientReady.value = false
+  stopRouteWatch()
+  if (router.onAfterRouteChange === afterRouteChange) router.onAfterRouteChange = previousAfterRouteChange
+  window.removeEventListener('pageshow', handlePageShow)
+  requestController?.abort()
+})
+
+function handlePageShow(event: PageTransitionEvent) {
+  if (event.persisted) void refreshDetails()
+}
 
 function localized(value: LocalizedText) {
   return isZh.value ? value.zh : value.en
@@ -23,13 +110,17 @@ const copy = computed(() => isZh.value ? {
   info: '应用信息',
   author: '开发者',
   category: '分类',
-  version: '目录版本快照',
-  unknownVersion: '查看 Releases',
+  version: '版本',
+  unknownVersion: '查看注册表',
   updated: '更新时间',
   unknownUpdated: '查看仓库记录',
+  refreshing: '正在获取最新应用信息…',
+  refreshed: '已从应用注册表更新',
+  refreshFailed: '更新失败，当前显示目录快照',
   source: '源码托管',
   repository: '查看源码',
   releases: '版本与下载',
+  download: '下载安装包',
   installation: '安装说明',
   releaseNote: '可用版本、安装包和设备兼容性以应用仓库说明为准。',
   feedback: '反馈与建议',
@@ -38,6 +129,10 @@ const copy = computed(() => isZh.value ? {
   related: '同类应用',
   details: '查看详情',
   allApps: '查看全部应用',
+  loading: '正在加载应用详情…',
+  loadFailed: '暂时无法获取应用详情',
+  loadFailedText: '请检查网络连接后重试。',
+  retry: '重新加载',
   missing: '未找到此应用',
   missingText: '此应用可能已移动或暂未收录。请返回目录浏览其他应用。',
   external: '在新标签页打开',
@@ -49,13 +144,17 @@ const copy = computed(() => isZh.value ? {
   info: 'App information',
   author: 'Developer',
   category: 'Category',
-  version: 'Catalog version snapshot',
-  unknownVersion: 'See releases',
+  version: 'Version',
+  unknownVersion: 'See registry',
   updated: 'Updated',
   unknownUpdated: 'See repository history',
+  refreshing: 'Refreshing application details…',
+  refreshed: 'Updated from the application registry',
+  refreshFailed: 'Update failed; showing the catalog snapshot',
   source: 'Source hosting',
   repository: 'View source',
   releases: 'Releases & downloads',
+  download: 'Download package',
   installation: 'Setup instructions',
   releaseNote: 'See the application repository for available releases, packages, and device compatibility.',
   feedback: 'Feedback & ideas',
@@ -64,6 +163,10 @@ const copy = computed(() => isZh.value ? {
   related: 'Similar applications',
   details: 'View details',
   allApps: 'View all applications',
+  loading: 'Loading application details…',
+  loadFailed: 'Unable to load application details',
+  loadFailedText: 'Check your connection and try again.',
+  retry: 'Retry',
   missing: 'Application not found',
   missingText: 'This application may have moved or is not in the catalog yet. Return to the catalog to explore other apps.',
   external: 'Opens in a new tab',
@@ -130,16 +233,19 @@ const copy = computed(() => isZh.value ? {
       <aside class="detail-sidebar" :aria-label="copy.info">
         <div class="detail-info-panel">
           <h2>{{ copy.info }}</h2>
+          <p v-if="liveStatus !== 'idle'" class="detail-live-status" :class="{ error: liveStatus === 'error' }" aria-live="polite">
+            {{ liveStatus === 'loading' ? copy.refreshing : liveStatus === 'success' ? copy.refreshed : copy.refreshFailed }}
+          </p>
           <dl>
             <div><dt>{{ copy.author }}</dt><dd>{{ app.author }}</dd></div>
             <div><dt>{{ copy.category }}</dt><dd>{{ localized(app.category) }}</dd></div>
-            <div><dt>{{ copy.version }}</dt><dd><template v-if="app.version">{{ app.version }}<span v-if="app.status" class="detail-version-status">{{ localized(app.status) }}</span></template><a v-else :href="`${app.repo}/releases`" target="_blank" rel="noopener noreferrer">{{ copy.unknownVersion }} <span aria-hidden="true">↗</span><span class="detail-sr-only"> ({{ copy.external }})</span></a></dd></div>
+            <div><dt>{{ copy.version }}</dt><dd><template v-if="app.version">{{ app.version }}<span v-if="app.status" class="detail-version-status">{{ localized(app.status) }}</span></template><a v-else :href="releaseLink" target="_blank" rel="noopener noreferrer">{{ copy.unknownVersion }} <span aria-hidden="true">↗</span><span class="detail-sr-only"> ({{ copy.external }})</span></a></dd></div>
             <div><dt>{{ copy.updated }}</dt><dd><time v-if="app.updated" :datetime="app.updated">{{ app.updated }}</time><a v-else :href="`${app.repo}/commits`" target="_blank" rel="noopener noreferrer">{{ copy.unknownUpdated }} <span aria-hidden="true">↗</span><span class="detail-sr-only"> ({{ copy.external }})</span></a></dd></div>
             <div><dt>{{ copy.source }}</dt><dd>GitHub</dd></div>
           </dl>
           <div class="detail-actions">
             <a class="detail-action-primary" :href="app.repo" target="_blank" rel="noopener noreferrer"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="m8 7-5 5 5 5m8-10 5 5-5 5m-3-13-2 16" /></svg>{{ copy.repository }}<span aria-hidden="true">↗</span><span class="detail-sr-only"> ({{ copy.external }})</span></a>
-            <a :href="`${app.repo}/releases`" target="_blank" rel="noopener noreferrer"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 3v12m-5-5 5 5 5-5M4 15v5h16v-5" /></svg>{{ copy.releases }}<span aria-hidden="true">↗</span><span class="detail-sr-only"> ({{ copy.external }})</span></a>
+            <a :href="releaseLink" target="_blank" rel="noopener noreferrer"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 3v12m-5-5 5 5 5-5M4 15v5h16v-5" /></svg>{{ liveStatus === 'success' ? copy.download : copy.releases }}<span aria-hidden="true">↗</span><span class="detail-sr-only"> ({{ copy.external }})</span></a>
             <a :href="`${app.repo}#readme`" target="_blank" rel="noopener noreferrer"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 5v15M3 4h5a4 4 0 0 1 4 2 4 4 0 0 1 4-2h5v15h-5a4 4 0 0 0-4 2 4 4 0 0 0-4-2H3Z" /></svg>{{ copy.installation }}<span aria-hidden="true">↗</span><span class="detail-sr-only"> ({{ copy.external }})</span></a>
           </div>
           <p class="detail-release-note">{{ copy.releaseNote }}</p>
@@ -147,9 +253,13 @@ const copy = computed(() => isZh.value ? {
       </aside>
     </div>
 
+    <div v-else-if="!clientReady || liveStatus === 'loading'" class="detail-missing" role="status">
+      <p>{{ copy.loading }}</p>
+    </div>
     <div v-else class="detail-missing">
-      <h1>{{ copy.missing }}</h1>
-      <p>{{ copy.missingText }}</p>
+      <h1>{{ liveStatus === 'error' ? copy.loadFailed : copy.missing }}</h1>
+      <p>{{ liveStatus === 'error' ? copy.loadFailedText : copy.missingText }}</p>
+      <button v-if="liveStatus === 'error'" class="detail-retry" @click="refreshDetails">{{ copy.retry }}</button>
       <a :href="catalogLink">{{ copy.back }} <span aria-hidden="true">→</span></a>
     </div>
   </div>
@@ -183,6 +293,8 @@ const copy = computed(() => isZh.value ? {
 .detail-sidebar { position: sticky; top: 88px; }
 .detail-info-panel { padding: 24px; border: 1px solid var(--detail-line); border-radius: 16px; background: var(--detail-soft); }
 .detail-info-panel h2 { padding-bottom: 18px; border-bottom: 1px solid var(--detail-line); }
+.detail-live-status { margin: 12px 0 -4px; color: #27808d; font-size: 11px; line-height: 1.6; }
+.detail-live-status.error { color: var(--detail-muted); }
 .detail-info-panel dl { display: grid; gap: 17px; margin: 22px 0 26px; }
 .detail-info-panel dl > div { display: flex; align-items: baseline; justify-content: space-between; gap: 14px; font-size: 12px; line-height: 1.6; }
 .detail-info-panel dt { flex: 0 1 auto; color: var(--detail-muted); }
@@ -217,6 +329,7 @@ const copy = computed(() => isZh.value ? {
 .detail-related-card p { flex: 0 0 100%; align-self: stretch; margin: 5px 0; color: var(--detail-muted); font-size: 12px; line-height: 1.7; }
 .detail-related-link { align-self: flex-end; font-size: 11px; font-weight: 600; }
 .detail-missing { padding: 72px 24px; border: 1px solid var(--detail-line); border-radius: 16px; background: var(--detail-soft); text-align: center; }
+.detail-retry { display: block; margin: 0 auto 20px; padding: 8px 18px; border: 1px solid var(--detail-line); border-radius: 8px; color: var(--detail-blue); cursor: pointer; }
 .detail-missing h1 { margin: 0; font-size: 30px; line-height: 1.4; }
 .detail-missing p { margin: 16px 0 24px; color: var(--detail-muted); line-height: 1.75; }
 .detail-sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }

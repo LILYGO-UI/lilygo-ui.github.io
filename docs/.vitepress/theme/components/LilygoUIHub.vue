@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useData, withBase } from 'vitepress'
 import { appLink, apps as catalogApps } from '../data/apps'
+import { fetchRegistryUpdates, type RegistryUpdate } from '../lib/appRegistry'
 
 type Update = {
   kind: string
@@ -13,13 +14,17 @@ type Update = {
 
 const { localeIndex } = useData()
 const isZh = computed(() => localeIndex.value === 'zh')
+const liveUpdates = ref<RegistryUpdate[] | null>(null)
+const updatesStatus = ref<'idle' | 'loading' | 'success' | 'error'>('idle')
+let requestController: AbortController | null = null
+let requestSequence = 0
 
 const copy = computed(() => isZh.value ? {
   eyebrow: 'LILYGO UI',
   title: '了解新动态，发现好应用',
   intro: '关注 LILYGO UI 的项目进展，探索值得一试的设备应用。',
   updates: '最新动态',
-  updatesIntro: '近期版本与项目进展 · 注册表快照更新于 2026 年 10 月 14 日',
+  updatesIntro: '近期版本与项目进展 · 实时读取 packages 注册表',
   featured: '精选推荐',
   featuredIntro: '从日常工具到语音助手，发现设备的更多可能。',
   details: '了解应用',
@@ -28,13 +33,13 @@ const copy = computed(() => isZh.value ? {
   title: 'Fresh updates. Apps to explore.',
   intro: 'Follow the progress of LILYGO UI and discover apps to try on your device.',
   updates: 'Latest updates',
-  updatesIntro: 'Recent releases and project news · Registry snapshot: October 14, 2026',
+  updatesIntro: 'Recent releases and project news · Live packages registry',
   featured: 'Featured apps',
   featuredIntro: 'From everyday tools to a voice assistant, explore more ways to use your device.',
   details: 'Explore app',
 })
 
-const updates = computed<Update[]>(() => isZh.value ? [
+const fallbackUpdates = computed<Update[]>(() => isZh.value ? [
   { kind: '发布', date: '2026-10-13', title: 'Launcher 0.1.2-rc2 发布', description: 'packages 注册表记录了 Launcher 的 arm64 候选版本，适合关注平台启动器开发进度。', link: 'https://github.com/LILYGO-UI/packages/commit/b48b580ed8074688af667b2c8768d92f450f21aa' },
   { kind: '发布', date: '2026-10-12', title: 'Store 0.1.2 发布', description: '应用商店客户端更新到 0.1.2，发布详情和构件以 packages 注册表为准。', link: 'https://github.com/LILYGO-UI/packages/commit/38d7ff1391415dd5bc3f3cc6ea2337ee5eea9235' },
   { kind: '发布', date: '2026-10-12', title: 'Files 0.1.1 发布', description: '文件管理器更新到 0.1.1，应用源码和版本信息可从官方仓库继续查看。', link: 'https://github.com/LILYGO-UI/packages/commit/12ccf81c27afa87ddd3c8bb3b57d192fe51b10e3' },
@@ -45,6 +50,56 @@ const updates = computed<Update[]>(() => isZh.value ? [
   { kind: 'Release', date: '2026-10-12', title: 'Files 0.1.1 released', description: 'The file manager moved to 0.1.1; use its source repository for implementation and installation details.', link: 'https://github.com/LILYGO-UI/packages/commit/12ccf81c27afa87ddd3c8bb3b57d192fe51b10e3' },
   { kind: 'Release', date: '2026-10-09', title: 'NES 0.1.1 released', description: 'NES entered the published registry list, showing the LILYGO UI application catalog continuing to expand.', link: 'https://github.com/LILYGO-UI/packages/commit/50a7007e92e9301f35239f0ccd31aed7715e9351' },
 ])
+
+const updates = computed<Update[]>(() => {
+  if (!liveUpdates.value?.length) return fallbackUpdates.value
+  return liveUpdates.value.map(update => ({
+    kind: isZh.value ? update.kind.zh : update.kind.en,
+    date: update.date,
+    title: isZh.value ? update.title.zh : update.title.en,
+    description: isZh.value ? update.description.zh : update.description.en,
+    link: update.link,
+  }))
+})
+
+const updateStatusText = computed(() => isZh.value
+  ? updatesStatus.value === 'loading' ? '正在获取最新动态…' : updatesStatus.value === 'success' ? '动态已更新' : '更新失败，显示已加载动态'
+  : updatesStatus.value === 'loading' ? 'Refreshing latest updates…' : updatesStatus.value === 'success' ? 'Updates refreshed' : 'Refresh failed; showing loaded updates')
+
+async function refreshUpdates() {
+  const sequence = ++requestSequence
+  requestController?.abort()
+  const controller = new AbortController()
+  requestController = controller
+  updatesStatus.value = 'loading'
+  const timeout = setTimeout(() => controller.abort(), 30_000)
+  try {
+    const result = await fetchRegistryUpdates(catalogApps, { signal: controller.signal, limit: 4 })
+    if (sequence !== requestSequence) return
+    liveUpdates.value = result
+    updatesStatus.value = result.length ? 'success' : 'error'
+  } catch {
+    if (sequence === requestSequence) updatesStatus.value = 'error'
+  } finally {
+    clearTimeout(timeout)
+    if (requestController === controller) requestController = null
+  }
+}
+
+function handlePageShow(event: PageTransitionEvent) {
+  if (event.persisted) void refreshUpdates()
+}
+
+onMounted(() => {
+  void refreshUpdates()
+  window.addEventListener('pageshow', handlePageShow)
+})
+
+onBeforeUnmount(() => {
+  ++requestSequence
+  requestController?.abort()
+  window.removeEventListener('pageshow', handlePageShow)
+})
 
 const featuredAppIds = new Set(['files', 'radio', 'store', 'xiaozhi'])
 const featuredApps = catalogApps.filter(app => featuredAppIds.has(app.id))
@@ -61,7 +116,7 @@ const featuredApps = catalogApps.filter(app => featuredAppIds.has(app.id))
     <section class="hub-section" aria-labelledby="hub-updates-title">
       <div class="hub-section-heading">
         <h2 id="hub-updates-title">{{ copy.updates }}</h2>
-        <p>{{ copy.updatesIntro }}</p>
+        <p>{{ copy.updatesIntro }}<span v-if="updatesStatus !== 'idle'" class="hub-update-status">{{ updateStatusText }}</span></p>
       </div>
       <div class="hub-update-grid">
         <a v-for="update in updates" :key="update.link" class="hub-update-card" :href="update.link" target="_blank" rel="noopener noreferrer">
@@ -127,6 +182,7 @@ const featuredApps = catalogApps.filter(app => featuredAppIds.has(app.id))
 .hub-section-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 24px; margin-bottom: 20px; }
 .lilygo-hub h2 { flex-shrink: 0; margin: 0; font-size: clamp(1.4rem, 2.5vw, 1.8rem); line-height: 1.3; letter-spacing: -.025em; }
 .hub-section-heading p { max-width: 580px; margin: 0; color: var(--hub-muted); font-size: 13px; line-height: 1.7; text-align: right; }
+.hub-update-status { display: block; margin-top: 4px; color: var(--hub-accent); font-size: 11px; }
 .hub-update-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
 .hub-update-card { position: relative; padding: 22px 22px 40px; border: 1px solid var(--hub-line); border-radius: 16px; background: var(--hub-soft); transition: transform .2s, border-color .2s, box-shadow .2s; }
 .hub-update-card:hover, .hub-app-card:hover { border-color: rgba(70, 146, 194, .55); box-shadow: 0 12px 28px rgba(32, 74, 109, .11); transform: translateY(-3px); }

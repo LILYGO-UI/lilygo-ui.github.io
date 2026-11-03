@@ -13,6 +13,7 @@ export type CatalogApp = {
   version?: string
   status?: LocalizedText
   updated?: string
+  registryPackage?: string
 }
 
 // Descriptions and features follow the applications' source README files.
@@ -56,6 +57,7 @@ export const apps: CatalogApp[] = [
   },
   {
     id: 'i2c-detector', name: 'I2C Detector', repo: 'https://github.com/LILYGO-UI/i2c-detector',
+    registryPackage: 'lilygo-ui-i2cdetector',
     category: { en: 'Hardware', zh: '硬件' },
     description: { en: 'Scans Linux I2C buses and reports 7-bit addresses.', zh: '扫描 Linux I2C 总线并显示 7-bit 地址。' },
     icon: '/app-icons/i2c-detector.svg', author: 'LILYGO-UI',
@@ -238,5 +240,10 @@ export const apps: CatalogApp[] = [
 ]
 
 export function appLink(app: CatalogApp, isZh: boolean): string {
-  return `${isZh ? '/zh' : ''}/applications/${app.id}.html`
+  const prefix = `${isZh ? '/zh' : ''}/applications`
+  const packageName = app.registryPackage ?? `lilygo-ui-${app.id}`
+  const staticApp = apps.find(item => (item.registryPackage ?? `lilygo-ui-${item.id}`) === packageName)
+  return staticApp
+    ? `${prefix}/${staticApp.id}.html`
+    : `${prefix}/detail.html?package=${encodeURIComponent(packageName)}`
 }

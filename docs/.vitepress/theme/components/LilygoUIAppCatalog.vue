@@ -1,10 +1,15 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useData, withBase } from 'vitepress'
-import { apps, appLink } from '../data/apps'
+import { apps as fallbackApps, appLink } from '../data/apps'
+import { fetchAppCatalog } from '../lib/appRegistry'
 
 const { localeIndex } = useData()
 const isZh = computed(() => localeIndex.value === 'zh')
+const apps = ref(fallbackApps)
+const catalogStatus = ref<'idle' | 'loading' | 'success' | 'error'>('idle')
+let requestController: AbortController | null = null
+let requestSequence = 0
 const query = ref('')
 const selectedCategory = ref('all')
 const sortBy = ref('featured')
@@ -21,7 +26,8 @@ const copy = computed(() => isZh.value ? {
   perPage: '每页', previous: '上一页', next: '下一页', pagination: '目录分页',
   registry: '应用注册表',
   registryText: '查阅 packages 注册表，了解应用发布记录和可用安装包。',
-  browseRegistry: '查看注册表', snapshot: '已记录版本',
+  browseRegistry: '查看注册表', snapshot: '已发布版本',
+  loading: '正在获取最新应用列表…', refreshed: '应用列表已更新', refreshFailed: '更新失败，显示已加载的应用列表',
 } : {
   title: 'Application catalog', intro: 'Find your next LILYGO UI app. Explore tools, media, and hardware applications, then open a card for features and installation details.',
   search: 'Search apps, features, or categories', filters: 'Filters', category: 'Categories', all: 'All apps',
@@ -30,22 +36,23 @@ const copy = computed(() => isZh.value ? {
   perPage: 'Per page', previous: 'Previous', next: 'Next', pagination: 'Catalog pagination',
   registry: 'Application registry',
   registryText: 'Explore the packages registry for application releases and available packages.',
-  browseRegistry: 'Open registry', snapshot: 'Recorded version',
+  browseRegistry: 'Open registry', snapshot: 'Published version',
+  loading: 'Refreshing applications…', refreshed: 'Application list updated', refreshFailed: 'Update failed; showing the loaded applications',
 })
 
 const categories = computed(() => [
-  { value: 'all', label: copy.value.all, count: apps.length },
-  ...Array.from(new Map(apps.map(app => [app.category.en, app.category])).values()).map(category => ({
+  { value: 'all', label: copy.value.all, count: apps.value.length },
+  ...Array.from(new Map(apps.value.map(app => [app.category.en, app.category])).values()).map(category => ({
     value: category.en,
     label: isZh.value ? category.zh : category.en,
-    count: apps.filter(app => app.category.en === category.en).length,
+    count: apps.value.filter(app => app.category.en === category.en).length,
   })),
 ])
 const activeCategory = computed(() => categories.value.find(category => category.value === selectedCategory.value))
 const hasFilters = computed(() => Boolean(query.value.trim()) || selectedCategory.value !== 'all')
 const filteredApps = computed(() => {
   const q = query.value.trim().toLowerCase()
-  const result = apps.filter(app => {
+  const result = apps.value.filter(app => {
     const matchesQuery = !q || [app.name, app.author, app.category.en, app.category.zh, app.description.en, app.description.zh,
       app.overview?.en ?? '', app.overview?.zh ?? '', ...app.features.flatMap(feature => [feature.en, feature.zh])]
       .some(value => value.toLowerCase().includes(q))
@@ -91,14 +98,53 @@ onMounted(() => {
   const params = new URLSearchParams(window.location.search)
   query.value = params.get('q') ?? ''
   const category = params.get('category')
-  if (categories.value.some(item => item.value === category)) selectedCategory.value = category!
+  if (category) selectedCategory.value = category
   if (params.get('sort') === 'name') sortBy.value = 'name'
   const size = Number(params.get('size'))
   if ([6, 12, 24].includes(size)) pageSize.value = size
   const requestedPage = Number(params.get('page'))
-  if (Number.isInteger(requestedPage) && requestedPage > 0) page.value = Math.min(requestedPage, pageCount.value)
+  if (Number.isInteger(requestedPage) && requestedPage > 0) page.value = requestedPage
   filtersOpen.value = selectedCategory.value !== 'all'
   ready = true
+  void refreshCatalog()
+  window.addEventListener('pageshow', handlePageShow)
+})
+async function refreshCatalog() {
+  const sequence = ++requestSequence
+  requestController?.abort()
+  const controller = new AbortController()
+  requestController = controller
+  catalogStatus.value = 'loading'
+  const timeout = setTimeout(() => controller.abort(), 30_000)
+  try {
+    const updated = await fetchAppCatalog(fallbackApps, {
+      signal: controller.signal,
+      onIndex: indexApps => {
+        if (sequence !== requestSequence) return
+        apps.value = indexApps
+        page.value = Math.min(page.value, pageCount.value)
+      },
+    })
+    if (sequence !== requestSequence) return
+    apps.value = updated
+    catalogStatus.value = 'success'
+  } catch {
+    if (sequence === requestSequence) catalogStatus.value = 'error'
+  } finally {
+    clearTimeout(timeout)
+    if (sequence === requestSequence) page.value = Math.min(page.value, pageCount.value)
+    if (requestController === controller) requestController = null
+  }
+}
+
+function handlePageShow(event: PageTransitionEvent) {
+  if (event.persisted) void refreshCatalog()
+}
+
+onBeforeUnmount(() => {
+  ++requestSequence
+  requestController?.abort()
+  window.removeEventListener('pageshow', handlePageShow)
 })
 </script>
 
@@ -109,6 +155,10 @@ onMounted(() => {
       <h1>{{ copy.title }}</h1>
       <p>{{ copy.intro }}</p>
     </header>
+
+    <p v-if="catalogStatus !== 'idle'" class="catalog-status" aria-live="polite">
+      {{ catalogStatus === 'loading' ? copy.loading : catalogStatus === 'success' ? copy.refreshed : copy.refreshFailed }}
+    </p>
 
     <div class="catalog-search-row">
       <label class="catalog-search">
@@ -138,7 +188,7 @@ onMounted(() => {
       <a v-for="app in visibleApps" :key="app.id" class="catalog-card" :href="appLink(app, isZh)" :aria-label="`${app.name} — ${copy.details}`">
         <div class="catalog-card-head">
           <img class="catalog-app-icon" :src="withBase(app.icon)" alt="" width="48" height="48" loading="lazy" decoding="async" />
-          <div class="catalog-identity"><h2>{{ app.name }}</h2><span>@{{ app.author }}</span></div>
+          <div class="catalog-identity"><h2>{{ app.name }}</h2><span v-if="app.author">@{{ app.author }}</span></div>
           <span class="catalog-card-arrow" aria-hidden="true">↗</span>
         </div>
         <p>{{ isZh ? app.description.zh : app.description.en }}</p>
@@ -176,6 +226,7 @@ onMounted(() => {
 .catalog-kicker > span { width: 6px; height: 6px; border-radius: 50%; background: var(--catalog-accent); }
 .catalog-header h1 { margin: 13px 0 15px; font-size: clamp(32px, 4.3vw, 46px); font-weight: 750; line-height: 1.2; letter-spacing: -.035em; }
 .catalog-header p { max-width: 730px; margin: 0; color: var(--catalog-muted); font-size: 15px; line-height: 1.8; }
+.catalog-status { margin: -12px 0 20px; color: var(--catalog-muted); font-size: 12px; }
 .catalog-search-row { display: flex; gap: 12px; }
 .catalog-search { display: flex; align-items: center; flex: 1; min-width: 0; gap: 12px; padding: 0 16px; border: 1px solid var(--catalog-line); border-radius: 10px; background: var(--catalog-soft); color: var(--catalog-muted); }
 .catalog-search:focus-within { border-color: var(--catalog-accent); box-shadow: 0 0 0 2px var(--catalog-tint); }
