@@ -1,11 +1,11 @@
 ---
-title: Quick start
+title: Development quick start
 show_source: false
 ---
 
-# Quick start
+# Development quick start
 
-This guide explains the development workflow described by the upstream LILYGO-UI repositories. It is intended for application developers and contributors. It does not replace board-specific instructions for writing a system image or recovering a device.
+This guide explains the development workflow described by the upstream LILYGO-UI repositories. It is intended for application developers and contributors. To write a system image to your device, start with [Quick start: USB and TF card flashing](./device-quick-start).
 
 ## 1. Install the host tools
 
@@ -61,7 +61,7 @@ Use the commands in the [AppKit README](https://github.com/LILYGO-UI/cm0-appkit)
 
 The LILYGO-UI development repositories document an AArch64 Linux target workflow. The [CM0BspBuilder](https://github.com/LILYGO-UI/CM0BspBuilder) project creates a reusable application sysroot and the matching CMake toolchain from released Raspberry Pi OS ZIP or raw IMG inputs. It also manages development-package overlays, versioned archives, checksums, and manifests.
 
-The [T-Display-CM0 hardware repository](https://github.com/Xinyuan-LilyGO/T-Display-CM0) currently documents a separate Raspberry Pi OS 32-bit armhf image deployment flow. Do not assume that image, its compiler, and the LILYGO-UI AArch64 workflow are interchangeable; confirm the supported combination in the upstream repositories before deploying to hardware.
+Ensure that the target system, sysroot, and compiler toolchain use matching architectures and compatible versions. For the system image and flashing steps, see [Quick start](./device-quick-start).
 
 The builder is an application-build dependency. Its README explicitly states that it is not a bootloader, kernel, device-tree, module, or complete device-image builder.
 
@@ -71,7 +71,7 @@ After the target build, use the packaging and deployment workflow documented by 
 
 ## Hardware setup
 
-If you are preparing a physical board, read [T-Display-CM0 hardware](./hardware) first. The board repository documents the Raspberry Pi OS image and first-boot deployment separately from the LILYGO UI application workflow.
+Check board specifications and interfaces in the official [T-Display-CM0 Wiki (Chinese)](https://wiki.lilygo.cc/zh/products/t-display-series/t-display-cm0/). To install the LILYGO UI system image, follow [Quick start: USB and TF card flashing](./device-quick-start).
 
 ## Where to go next
 

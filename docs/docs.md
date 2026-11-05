@@ -1,6 +1,6 @@
 ---
 title: Documentation center
-desc: LILYGO UI development standards, tutorials, hardware deployment notes, and troubleshooting.
+description: Quick start, developer documentation, and application user guides for LILYGO UI.
 layout: doc
 sidebar: false
 aside: false
@@ -9,21 +9,43 @@ show_source: false
 
 # Documentation center
 
-Use this page as the starting point for LILYGO UI development and device usage. Open it from the top navigation to find development guides, hardware notes, and troubleshooting resources.
+Choose from Quick start, Developer documentation, and User documentation according to your goal.
 
-## Build and develop
+## Quick start
 
-- [Quick start](./quick-start) — install `lpm`, initialize an app, run the host simulator, package, and deploy.
-- [Development guide](./development) — AppKit, launcher manifests, CMake targets, sysroots, and the release path.
+For first-time setup or reinstalling the system: prepare a system image, flash it over USB or onto a TF card, and start the device.
 
-## Hardware and troubleshooting
+**[Open quick start →](./device-quick-start)**
 
-- [T-Display-CM0 hardware](./hardware) — board capabilities, Raspberry Pi OS deployment, and official board resources.
-- [FAQ](./faq) — supported devices, system image boundaries, registry ownership, and issue routing.
-- [Browser file sharing](./file-share) — discover a Linux device and transfer files over a WebRTC direct path.
+- [Download the system image](./device-quick-start#download-image) — get the T-Display-CM0 image used in this tutorial for both USB and TF card flashing.
+- [Flash over USB](./device-quick-start#usb-flashing) — connect the device to a computer with a USB data cable and write the image.
+- [Flash a TF card](./device-quick-start#tf-flashing) — write the image with a card reader, then insert the card into the device and boot.
 
-## Project resources
+Once connected, follow the shared [Raspberry Pi Imager walkthrough](./device-quick-start#imager-flashing) to choose an image, write it, and complete verification.
 
-- [LILYGO UI project hub](./)
-- [Application catalog](./applications)
-- [LILYGO-UI organization on GitHub](https://github.com/LILYGO-UI)
+## Developer documentation
+
+For application developers and contributors: set up a development environment, integrate AppKit and keyboard input, build packages, and deploy to hardware.
+
+**[Open developer documentation →](./developer-guide)**
+
+- [Development quick start](./quick-start) — tools, project creation, host simulation, packaging, and deployment.
+- [Development guide](./development) — AppKit, application manifests, runtime layers, and the release workflow.
+- [Keyboard integration](./keyboard-input) — focus navigation, text editing, and modal views.
+- [T-Display-CM0 hardware (Chinese Wiki)](https://wiki.lilygo.cc/zh/products/t-display-series/t-display-cm0/) · [System image flashing](./device-quick-start) · [FAQ](./faq)
+
+## User documentation
+
+For device users: prepare the device, install and open applications, follow the controls, find saved files, and troubleshoot common problems. Includes 27 guides covering the applications and the Template example in the CM0 workspace.
+
+**[Open user documentation and all application guides →](./user-guide)**
+
+- **System and everyday tools:** Launcher, Store, Settings, Files, Calculator, Monitor, and Terminal.
+- **Media and games:** Camera, Gallery, Music, Radio, YouTube, and NES.
+- **Network and assistants:** Maps, Clash, LilyChat (Telegram), PicoClaw, and Xiaozhi.
+- **Hardware and communication:** Cellular, Meshtastic, I2C Detector, IMU, Sensors, and Serial.
+- **Example:** Template.
+
+Start with [Launcher](./guide/launcher), [Settings](./guide/settings), and [Store](./guide/store). To transfer files from a computer, open [Browser file sharing](./file-share). To control the device from a computer terminal, follow [SSH remote login](./ssh-login).
+
+[Browse the application catalog](./applications) · [Project hub](./)

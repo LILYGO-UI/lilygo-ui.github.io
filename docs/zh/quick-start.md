@@ -1,11 +1,11 @@
 ---
-title: 快速开始
+title: 开发快速开始
 show_source: false
 ---
 
-# 快速开始
+# 开发快速开始
 
-本页整理上游 LILYGO-UI 仓库描述的应用开发流程，面向应用开发者和贡献者。设备系统镜像写入、恢复等操作仍应遵循对应硬件的官方说明。
+本页整理上游 LILYGO-UI 仓库描述的应用开发流程，面向应用开发者和贡献者。需要为设备烧录系统镜像时，请先阅读[快速开始：USB 与 TF 卡烧录](./device-quick-start)。
 
 ## 准备工具
 
@@ -32,13 +32,13 @@ lpm init
 
 AppKit 提供 SDL2 主机 profile，可先在桌面验证界面和交互，再部署到 CM0。LILYGO-UI 软件仓库记录的是 AArch64 Linux 目标机构建流程，使用 [CM0BspBuilder](https://github.com/LILYGO-UI/CM0BspBuilder) 生成 sysroot 和 CMake toolchain。
 
-[T-Display-CM0 硬件仓库](https://github.com/Xinyuan-LilyGO/T-Display-CM0) 当前记录的是另一套 Raspberry Pi OS 32-bit armhf 镜像部署流程。不能仅凭这些文档假设镜像、编译器和 LILYGO-UI 的 AArch64 流程可以互换；部署前请在上游仓库确认支持的组合。
+请确保目标系统、sysroot 和编译工具链的架构一致、版本兼容。系统镜像与烧录步骤请参阅[快速开始](./device-quick-start)。
 
 > CM0BspBuilder 是应用构建所需的 sysroot/toolchain 工具，不是 bootloader、kernel、device tree、kernel module 或完整设备镜像生成器。
 
 ## 硬件准备
 
-如果你正在准备实体板卡，请先阅读 [T-Display-CM0 硬件](./hardware)。板卡仓库单独记录 Raspberry Pi OS 镜像和首次启动部署流程，和 LILYGO UI 应用构建流程分开。
+板卡参数与接口请参阅 [T-Display-CM0 官方 Wiki](https://wiki.lilygo.cc/zh/products/t-display-series/t-display-cm0/)。安装 LILYGO UI 系统镜像时，请按[快速开始：USB 与 TF 卡烧录](./device-quick-start)操作。
 
 ## 下一步
 

@@ -77,7 +77,7 @@ export const apps: CatalogApp[] = [
     features: [
       { en: 'A ball follows board tilt and responds to sudden acceleration.', zh: '小球随板卡倾斜移动，并对突然加速作出响应。' },
       { en: 'Read acceleration and angular velocity on all three axes.', zh: '查看三个轴的加速度与角速度。' },
-      { en: 'Pause, reset, calibrate a neutral position, and adjust motion sensitivity.', zh: '支持暂停、复位、校准中立位置和调整运动灵敏度。' },
+      { en: 'Adjust motion sensitivity and check Live, Demo, or Offline status.', zh: '调整运动灵敏度，并查看 Live、Demo 或 Offline 状态。' },
     ],
   },
   {

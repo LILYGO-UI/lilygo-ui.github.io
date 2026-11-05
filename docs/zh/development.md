@@ -27,6 +27,12 @@ find_package(LilyGoUI CONFIG REQUIRED)
 
 公开的 CMake target 包括 `LilyGoUI::LVGL`、`LilyGoUI::UIFonts`、`LilyGoUI::SystemStatus`、`LilyGoUI::StatusBar` 和 `LilyGoUI::Runtime`。主机使用 SDL2 和 FreeType，目标机使用 CM0 sysroot 提供的 DRM/FreeType 环境。
 
+## 键盘接入
+
+应用通过 `cm0_app_run()` 使用 `LilyGoUI::Runtime` 的默认输入组，由 AppKit 负责键盘发现、热插拔、按键映射、焦点导航和软键盘抑制。业务逻辑连接到控件事件，并按需标记弹窗焦点范围和滚动浏览区域。
+
+[键盘接入指南](./keyboard-input)提供代码示例、按键行为速查、焦点样式说明，以及验证和发布检查清单。
+
 ## Launcher 布局
 
 应用通过 JSON manifest 被 launcher 发现。上游 launcher README 描述的默认逻辑画布为竖屏 **568 × 1232**，状态栏 **96 px**，每页最多 **18 个应用**。这些是当前默认值，设计依赖精确尺寸时请以仓库最新内容为准。

@@ -2,6 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useData, useRouter, withBase } from 'vitepress'
 import { apps, appLink, type LocalizedText } from '../data/apps'
+import { usageGuideLink } from '../data/guides'
 import { fetchAppDetails, type AppDetails } from '../lib/appRegistry'
 
 const { localeIndex, params } = useData()
@@ -27,6 +28,7 @@ const app = computed(() => {
     : staticApp.value
 })
 const catalogLink = computed(() => isZh.value ? '/zh/applications.html' : '/applications.html')
+const guideLink = computed(() => usageGuideLink(requestedPackage.value, isZh.value))
 const relatedApps = computed(() => app.value
   ? apps.filter(item => item.id !== app.value?.id && item.category.en === app.value?.category.en).slice(0, 3)
   : [])
@@ -122,6 +124,7 @@ const copy = computed(() => isZh.value ? {
   releases: '版本与下载',
   download: '下载安装包',
   installation: '安装说明',
+  userGuide: '使用文档',
   releaseNote: '可用版本、安装包和设备兼容性以应用仓库说明为准。',
   feedback: '反馈与建议',
   feedbackText: '发现问题或有新的想法？前往应用仓库查看已有讨论，或提交反馈。',
@@ -156,6 +159,7 @@ const copy = computed(() => isZh.value ? {
   releases: 'Releases & downloads',
   download: 'Download package',
   installation: 'Setup instructions',
+  userGuide: 'User guide',
   releaseNote: 'See the application repository for available releases, packages, and device compatibility.',
   feedback: 'Feedback & ideas',
   feedbackText: 'Found a problem or have an idea? Visit the application repository to browse discussions or share feedback.',
@@ -244,6 +248,7 @@ const copy = computed(() => isZh.value ? {
             <div><dt>{{ copy.source }}</dt><dd>GitHub</dd></div>
           </dl>
           <div class="detail-actions">
+            <a v-if="guideLink" :href="withBase(guideLink)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 5v15M3 4h5a4 4 0 0 1 4 2 4 4 0 0 1 4-2h5v15h-5a4 4 0 0 0-4 2 4 4 0 0 0-4-2H3Z" /></svg>{{ copy.userGuide }}<span aria-hidden="true">→</span></a>
             <a class="detail-action-primary" :href="app.repo" target="_blank" rel="noopener noreferrer"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="m8 7-5 5 5 5m8-10 5 5-5 5m-3-13-2 16" /></svg>{{ copy.repository }}<span aria-hidden="true">↗</span><span class="detail-sr-only"> ({{ copy.external }})</span></a>
             <a :href="releaseLink" target="_blank" rel="noopener noreferrer"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 3v12m-5-5 5 5 5-5M4 15v5h16v-5" /></svg>{{ liveStatus === 'success' ? copy.download : copy.releases }}<span aria-hidden="true">↗</span><span class="detail-sr-only"> ({{ copy.external }})</span></a>
             <a :href="`${app.repo}#readme`" target="_blank" rel="noopener noreferrer"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 5v15M3 4h5a4 4 0 0 1 4 2 4 4 0 0 1 4-2h5v15h-5a4 4 0 0 0-4 2 4 4 0 0 0-4-2H3Z" /></svg>{{ copy.installation }}<span aria-hidden="true">↗</span><span class="detail-sr-only"> ({{ copy.external }})</span></a>

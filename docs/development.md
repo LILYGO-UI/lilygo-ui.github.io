@@ -35,6 +35,12 @@ The documented targets include:
 
 Applications compile and statically link their AppKit and LVGL code. On a host, the project uses SDL2 and FreeType; on the target, the CM0 sysroot supplies the DRM/FreeType environment.
 
+## Keyboard input
+
+Applications use `cm0_app_run()` and the default `LilyGoUI::Runtime` input group. AppKit handles keyboard discovery, hotplug, key mapping, focus navigation, and software-keyboard suppression. Connect business actions to control events, and mark modal focus scopes and scrollable browsing regions as needed.
+
+The [keyboard integration guide](./keyboard-input) provides code examples, a key behavior reference, focus styling, and validation and release checklists.
+
 ## Launcher metadata and layout
 
 Applications are independent executables. The launcher discovers them through JSON manifests, which keeps the application registry separate from the launcher binary. The launcher README describes a default logical canvas of **568 × 1232** in portrait orientation, a **96 px** status bar, and up to **18 applications per page** in a 3 × 6 portrait or 6 × 3 landscape grid.
